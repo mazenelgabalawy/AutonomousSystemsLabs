@@ -114,16 +114,14 @@ class RRT(Point):
             p1 = qnear.numpy()
             p2 = qnew.numpy()
 
-            free = True
-
             x = np.int_(np.linspace(p1,p2,divisions))
             x = [tuple(i) for i in x]
 
             for i in x:
                 if grid_map[i] == 1:
-                    free = False
+                    return False
 
-            return free
+            return True
 
     def rrt(self):
         self.configs.append(self.start)
@@ -144,11 +142,12 @@ class RRT(Point):
                 if qnew.dist(self.goal) < self.min_dist_to_goal:
                     self.configs.append(self.goal)
                     self.edges.append((idx_near,self.configs.index(self.goal)))
-                    print(i)
+                    print("Number of iterations: ", i)
                     return self.configs,self.edges
         return None
     
-    def smooth():
+    def smooth(self):
+        configs , edges = self.rrt()
         pass
 
     def rrt_star():
@@ -157,11 +156,16 @@ class RRT(Point):
 
 try:
     graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),
-                sample_goal_probability=0.2,max_iter=1000,dq=10,edge_divisions=15,min_dist_to_goal=5)
+                sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=10,min_dist_to_goal=10)
     configs, edges= graph.rrt()
 
     states, edges, path = fill_path(configs, edges)
+    total_distance = 0
     plot(grid_map, states, edges, path)
+    for i,j in zip(path,path[1:]):
+        total_distance += states[i].dist(states[j])
+    print(total_distance)
+    print(len(path))
     plt.show()
 except TypeError:
     print("No path found")
