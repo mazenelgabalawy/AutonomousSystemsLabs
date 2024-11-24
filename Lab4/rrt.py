@@ -41,21 +41,6 @@ def plot(grid_map, states, edges, path):
     # Goal
     plt.plot(states[-1].y, states[-1].x, "g*")
 
-def fill_path(vertices, edges):
-    edges.reverse()
-    path = [edges[0][1]]
-    next_v = edges[0][0]
-    i = 1
-    while next_v != 0:
-        while edges[i][1] != next_v:
-            i += 1
-        path.append(edges[i][1])
-        next_v = edges[i][0]
-    path.append(0)
-    edges.reverse()
-    path.reverse()
-    return vertices, edges, path
-
 
 class RRT(Point):
     
@@ -69,8 +54,6 @@ class RRT(Point):
         self.dq = dq
         self.edge_divisions = edge_divisions
         self.min_dist_to_goal = min_dist_to_goal
-        self.configs = []
-        self.edges = []
 
     def random_sample(self,gridmap,p):
         """Sample a random point in the gridmap.
@@ -110,9 +93,9 @@ class RRT(Point):
 
         return qnear.__add__(step)
         
-    def is_segment_free(self,qnear,qnew,divisions):
-            p1 = qnear.numpy()
-            p2 = qnew.numpy()
+    def is_segment_free(self,q1,q2,divisions):
+            p1 = q1.numpy()
+            p2 = q2.numpy()
 
             x = np.int_(np.linspace(p1,p2,divisions))
             x = [tuple(i) for i in x]
@@ -124,48 +107,88 @@ class RRT(Point):
             return True
 
     def rrt(self):
-        self.configs.append(self.start)
+
+        configs = []
+        edges = []
+        path = []
+
+        configs.append(self.start)
 
         for i in range(self.max_iter):
             qrand = self.random_sample(self.gridmap,self.sample_goal_probability)
-            qnear = self.nearest_vertex(qrand,self.configs)
+            qnear = self.nearest_vertex(qrand,configs)
             qnew = self.new_config(qrand,qnear,self.dq)
 
             if self.is_segment_free(qnear,qnew,self.edge_divisions):
-                self.configs.append(qnew)
+                configs.append(qnew)
                 
-                idx_near = self.configs.index(qnear)
-                idx_new = self.configs.index(qnew)
+                idx_near = configs.index(qnear)
+                idx_new = configs.index(qnew)
 
-                self.edges.append((idx_near,idx_new))
+                edges.append((idx_near,idx_new))
 
                 if qnew.dist(self.goal) < self.min_dist_to_goal:
-                    self.configs.append(self.goal)
-                    self.edges.append((idx_near,self.configs.index(self.goal)))
+                    configs.append(self.goal)
+                    edges.append((idx_near,configs.index(self.goal)))
+
+                    edges.reverse()
+                    path = [edges[0][1]]
+                    next_v = edges[0][0]
+                    i = 1
+                    while next_v != 0:
+                        while edges[i][1] != next_v:
+                            i += 1
+                        path.append(edges[i][1])
+                        next_v = edges[i][0]
+                    path.append(0)
+                    edges.reverse()
+                    path.reverse()
+
                     print("Number of iterations: ", i)
-                    return self.configs,self.edges
+                    return configs, edges, path
         return None
     
-    def smooth(self):
-        configs , edges = self.rrt()
-        pass
+    def smooth(self,configs,edges,path):
+        j = -1
+        i = 0
+        new_path = [path[-1]]
+
+        while new_path[0]!=0:
+            if self.is_segment_free(configs[path[i]],configs[j],self.edge_divisions):
+                new_path = [path[i]] + new_path
+                j = path[i]
+                i = 0
+            else:
+                i += 1
+
+        return configs,edges,new_path
 
     def rrt_star():
         pass
     
-
-try:
+if __name__ == "__main__":
+    
     graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),
-                sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=10,min_dist_to_goal=10)
-    configs, edges= graph.rrt()
+                sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=50,min_dist_to_goal=10)
+    try:
+        configs, edges, path= graph.rrt()
+        total_distance = 0
+        plot(grid_map, configs, edges, path)
+        for i,j in zip(path,path[1:]):
+            total_distance += configs[i].dist(configs[j])
+        print(total_distance)
+        print(len(path))
+        plt.show()
 
-    states, edges, path = fill_path(configs, edges)
-    total_distance = 0
-    plot(grid_map, states, edges, path)
-    for i,j in zip(path,path[1:]):
-        total_distance += states[i].dist(states[j])
-    print(total_distance)
-    print(len(path))
-    plt.show()
-except TypeError:
-    print("No path found")
+        configs, edges, path = graph.smooth(configs,edges,path)
+
+        total_distance = 0
+        plot(grid_map, configs, edges, path)
+        for i,j in zip(path,path[1:]):
+            total_distance += configs[i].dist(configs[j])
+        print(total_distance)
+        print(len(path))
+        plt.show()
+
+    except TypeError:
+        print("No path found")
