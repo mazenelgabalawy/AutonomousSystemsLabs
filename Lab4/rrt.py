@@ -19,9 +19,9 @@ grid_map = (grid_map * -1) + 1
 def plot(grid_map, states, edges, path):
     plt.figure(figsize=(10, 10))
     plt.matshow(grid_map, fignum=0)
-    for i,v in enumerate(states):
-        plt.plot(v.y, v.x, "+w")
-        plt.text(v.y, v.x, i, fontsize=14, color="w")
+    # for i,v in enumerate(states):
+    #     plt.plot(v.y, v.x, "+w")
+    #     # plt.text(v.y, v.x, i, fontsize=14, color="w")
 
     for e in edges:
         plt.plot(
@@ -44,7 +44,7 @@ def plot(grid_map, states, edges, path):
 
 class RRT(Point):
     
-    def __init__(self,gridmap,start,goal,sample_goal_probability,max_iter,dq,edge_divisions,min_dist_to_goal):
+    def __init__(self,gridmap,start,goal,sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=10,min_dist_to_goal=10,search_radius=20):
 
         self.gridmap = gridmap
         self.start = Point(start[0],start[1])
@@ -54,6 +54,7 @@ class RRT(Point):
         self.dq = dq
         self.edge_divisions = edge_divisions
         self.min_dist_to_goal = min_dist_to_goal
+        self.search_radius = search_radius
 
     def random_sample(self,gridmap,p):
         """Sample a random point in the gridmap.
@@ -127,7 +128,7 @@ class RRT(Point):
 
                 edges.append((idx_near,idx_new))
 
-                if qnew.dist(self.goal) < self.min_dist_to_goal:
+                if qnew.dist(self.goal) < self.min_dist_to_goal and self.is_segment_free(self.goal,qnew,self.edge_divisions):
                     configs.append(self.goal)
                     edges.append((idx_near,configs.index(self.goal)))
 
@@ -163,31 +164,87 @@ class RRT(Point):
 
         return configs,edges,new_path
 
-    def rrt_star():
-        pass
+    def rrt_star(self):
+        configs = []
+        edges = []
+        path = []
+
+        configs.append(self.start)
+
+        # Cost of reaching the start node (this is typically 0)
+        costs = {}
+        costs[self.start] = 0
+
+        for i in range(self.max_iter):
+            qrand = self.random_sample(self.gridmap,self.sample_goal_probability)
+            qnear = self.nearest_vertex(qrand,configs)
+            qnew = self.new_config(qrand,qnear,self.dq)
+            
+            if self.is_segment_free(qnear,qnew,self.edge_divisions):
+                configs.append(qnew)
+                costs[qnew] = costs[qnear] + qnew.dist(qnear)
+                
+                idx_near = configs.index(qnear)
+                idx_new = configs.index(qnew)
+
+                edges.append((idx_near,idx_new))
+
+                qnew_neighbors = []
+                for j in configs:
+                    if qnew.dist(j)<=self.search_radius and self.is_segment_free(qnew,j,self.edge_divisions):
+                        qnew_neighbors.append((j,configs.index(j)))
+                        new_cost = costs[j] + qnew.dist(j)
+                        if new_cost < costs[qnew]:
+                            edges.remove((idx_near,idx_new))
+                            
+                            qmin = j
+                            idx_min = configs.index(qmin)
+                            edges.append((idx_min,idx_new))
+                            costs[qnew] = new_cost
+                            idx_near = idx_min
+                
+                for neighbor, idx_neighbor in qnew_neighbors:
+                    new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
+                    if new_neighbor_cost < costs[neighbor]:
+                        edges = [edge for edge in edges if edge[1] != idx_neighbor] # remove previous edge
+                        edges.append((idx_new,idx_neighbor))
+                        costs[neighbor] = new_neighbor_cost
+
+        return configs, edges, path
+
     
 if __name__ == "__main__":
-    
+
     graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),
-                sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=50,min_dist_to_goal=10)
+                sample_goal_probability=0.2,max_iter=1000,dq=10,edge_divisions=100,min_dist_to_goal=5)
     try:
-        configs, edges, path= graph.rrt()
-        total_distance = 0
-        plot(grid_map, configs, edges, path)
-        for i,j in zip(path,path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        print(len(path))
-        plt.show()
+        # configs, edges, path= graph.rrt()
+        # total_distance = 0
+        # plot(grid_map, configs, edges, path)
+        # for i,j in zip(path,path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # print(len(path))
+        # plt.show()
 
-        configs, edges, path = graph.smooth(configs,edges,path)
+        # configs, edges, path = graph.smooth(configs,edges,path)
 
-        total_distance = 0
+        # total_distance = 0
+        # plot(grid_map, configs, edges, path)
+        # for i,j in zip(path,path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # print(len(path))
+        # plt.show()
+
+        configs, edges, path = graph.rrt_star()
+
+        # total_distance = 0
         plot(grid_map, configs, edges, path)
-        for i,j in zip(path,path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        print(len(path))
+        # for i,j in zip(path,path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # print(len(path))
         plt.show()
 
     except TypeError:
