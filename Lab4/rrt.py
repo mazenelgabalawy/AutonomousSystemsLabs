@@ -16,30 +16,37 @@ grid_map[grid_map <= 0.5] = 0
 grid_map = (grid_map * -1) + 1
 
 
-def plot(grid_map, states, edges, path):
+
+def plot(grid_map,configs,parents,path):
+    
+    edges = []
+    for parent,child in parents.items():
+        if child != None:
+            edges.append((configs.index(parent),configs.index(child)))
+
     plt.figure(figsize=(10, 10))
     plt.matshow(grid_map, fignum=0)
-    # for i,v in enumerate(states):
-    #     plt.plot(v.y, v.x, "+w")
-    #     # plt.text(v.y, v.x, i, fontsize=14, color="w")
+    for i,v in enumerate(configs):
+        plt.plot(v.y, v.x, "+w")
+        # plt.text(v.y, v.x, i, fontsize=14, color="w")
 
     for e in edges:
         plt.plot(
-            [states[e[0]].y, states[e[1]].y],
-            [states[e[0]].x, states[e[1]].x],
+            [configs[e[0]].y, configs[e[1]].y],
+            [configs[e[0]].x, configs[e[1]].x],
             "--g",
         )
 
     for i in range(1, len(path)):
         plt.plot(
-            [states[path[i - 1]].y, states[path[i]].y],
-            [states[path[i - 1]].x, states[path[i]].x],
+            [configs[path[i - 1]].y, configs[path[i]].y],
+            [configs[path[i - 1]].x, configs[path[i]].x],
             "r",
         )
     # Start
-    plt.plot(states[0].y, states[0].x, "r*")
+    plt.plot(configs[0].y, configs[0].x, "r*")
     # Goal
-    plt.plot(states[-1].y, states[-1].x, "g*")
+    plt.plot(configs[-1].y, configs[-1].x, "g*")
 
 
 class RRT(Point):
@@ -91,7 +98,6 @@ class RRT(Point):
             return qnear
 
         step = unit_vector*min(dq,distance)
-
         return qnear.__add__(step)
         
     def is_segment_free(self,q1,q2,divisions):
@@ -107,13 +113,23 @@ class RRT(Point):
 
             return True
 
+    def reconstruct_path(self,configs,parents):
+        current = configs[-1]
+        path_objects = [current]
+
+        while current in parents.keys():
+            current = parents[current]
+            path_objects = [current] + path_objects
+
+        path_objects = path_objects[1:]
+        path = [configs.index(p) for p in path_objects]
+
+        return path
     def rrt(self):
-
         configs = []
-        edges = []
-        path = []
-
         configs.append(self.start)
+        parents = {}
+        parents[self.start] = None
 
         for i in range(self.max_iter):
             qrand = self.random_sample(self.gridmap,self.sample_goal_probability)
@@ -122,54 +138,35 @@ class RRT(Point):
 
             if self.is_segment_free(qnear,qnew,self.edge_divisions):
                 configs.append(qnew)
-                
-                idx_near = configs.index(qnear)
-                idx_new = configs.index(qnew)
-
-                edges.append((idx_near,idx_new))
+                parents[qnew] = qnear
 
                 if qnew.dist(self.goal) < self.min_dist_to_goal and self.is_segment_free(self.goal,qnew,self.edge_divisions):
                     configs.append(self.goal)
-                    edges.append((idx_near,configs.index(self.goal)))
-
-                    edges.reverse()
-                    path = [edges[0][1]]
-                    next_v = edges[0][0]
-                    i = 1
-                    while next_v != 0:
-                        while edges[i][1] != next_v:
-                            i += 1
-                        path.append(edges[i][1])
-                        next_v = edges[i][0]
-                    path.append(0)
-                    edges.reverse()
-                    path.reverse()
-
+                    parents[self.goal] = qnew
                     print("Number of iterations: ", i)
-                    return configs, edges, path
+                    return configs, parents
         return None
     
-    def smooth(self,configs,edges,path):
+    def smooth(self,configs,parents,path):
         j = -1
         i = 0
-        new_path = [path[-1]]
+        path_to_goal = [path[-1]]
 
-        while new_path[0]!=0:
+        while path_to_goal[0]!=0:
             if self.is_segment_free(configs[path[i]],configs[j],self.edge_divisions):
-                new_path = [path[i]] + new_path
+                path_to_goal = [path[i]] + path_to_goal
                 j = path[i]
                 i = 0
             else:
                 i += 1
 
-        return configs,edges,new_path
+        return configs,parents,path_to_goal
 
     def rrt_star(self):
         configs = []
-        edges = []
-        path = []
-
         configs.append(self.start)
+        parents = {}
+        parents[self.start] = None
 
         # Cost of reaching the start node (this is typically 0)
         costs = {}
@@ -182,70 +179,73 @@ class RRT(Point):
             
             if self.is_segment_free(qnear,qnew,self.edge_divisions):
                 configs.append(qnew)
+                parents[qnew] = qnear
                 costs[qnew] = costs[qnear] + qnew.dist(qnear)
-                
-                idx_near = configs.index(qnear)
-                idx_new = configs.index(qnew)
-
-                edges.append((idx_near,idx_new))
 
                 qnew_neighbors = []
                 for j in configs:
                     if qnew.dist(j)<=self.search_radius and self.is_segment_free(qnew,j,self.edge_divisions):
-                        qnew_neighbors.append((j,configs.index(j)))
+                        qnew_neighbors.append(j)
                         new_cost = costs[j] + qnew.dist(j)
                         if new_cost < costs[qnew]:
-                            edges.remove((idx_near,idx_new))
-                            
-                            qmin = j
-                            idx_min = configs.index(qmin)
-                            edges.append((idx_min,idx_new))
+                            parents[qnew] = j
                             costs[qnew] = new_cost
-                            idx_near = idx_min
                 
-                for neighbor, idx_neighbor in qnew_neighbors:
+                for neighbor in qnew_neighbors:
                     new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
                     if new_neighbor_cost < costs[neighbor]:
-                        edges = [edge for edge in edges if edge[1] != idx_neighbor] # remove previous edge
-                        edges.append((idx_new,idx_neighbor))
+                        parents[neighbor] = qnew
                         costs[neighbor] = new_neighbor_cost
 
-        return configs, edges, path
+        configs.append(self.goal)
+        min_distance = float('inf')
+        for i in configs:
+            new_distance = self.goal.dist(i)
+            if new_distance < min_distance:
+                min_distance = new_distance
+                parents[self.goal] = i
+
+        return configs, parents
 
     
 if __name__ == "__main__":
 
     graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),
-                sample_goal_probability=0.2,max_iter=1000,dq=10,edge_divisions=100,min_dist_to_goal=5)
+                sample_goal_probability=0.2,max_iter=100,dq=10,edge_divisions=100,min_dist_to_goal=5)
     try:
-        # configs, edges, path= graph.rrt()
+        # configs, parents= graph.rrt()
+        # path = graph.reconstruct_path(configs,parents)
+        
         # total_distance = 0
-        # plot(grid_map, configs, edges, path)
         # for i,j in zip(path,path[1:]):
         #     total_distance += configs[i].dist(configs[j])
-        # print(total_distance)
         # print(len(path))
+        # print(total_distance)
+        # plot(grid_map,configs,parents,path)
+        # plt.show()
+        # #####
+        # configs, parents, smooth_path = graph.smooth(configs,parents,path)
+        # total_distance = 0
+        # for i,j in zip(smooth_path,smooth_path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(len(smooth_path))
+        # print(total_distance)
+
+        # plot(grid_map, configs,parents,smooth_path)
         # plt.show()
 
-        # configs, edges, path = graph.smooth(configs,edges,path)
-
-        # total_distance = 0
-        # plot(grid_map, configs, edges, path)
-        # for i,j in zip(path,path[1:]):
-        #     total_distance += configs[i].dist(configs[j])
-        # print(total_distance)
-        # print(len(path))
-        # plt.show()
-
-        configs, edges, path = graph.rrt_star()
-
-        # total_distance = 0
-        plot(grid_map, configs, edges, path)
-        # for i,j in zip(path,path[1:]):
-        #     total_distance += configs[i].dist(configs[j])
-        # print(total_distance)
-        # print(len(path))
+        configs, parents = graph.rrt_star()
+        path = graph.reconstruct_path(configs,parents)
+        plot(grid_map, configs,parents,path)
         plt.show()
+
+        # total_distance = 0
+        # plot(grid_map, configs, edges, path)
+        # for i,j in zip(path,path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # print(len(path))
+        # plt.show()
 
     except TypeError:
         print("No path found")
