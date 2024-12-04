@@ -24,6 +24,10 @@ def plot(grid_map,configs,parents,path):
         if child != None:
             edges.append((configs.index(parent),configs.index(child)))
 
+            
+    # matches = [key for key, value in parents.items() if key == value]
+    # print(matches)
+
     plt.figure(figsize=(10, 10))
     plt.matshow(grid_map, fignum=0)
     for i,v in enumerate(configs):
@@ -36,7 +40,7 @@ def plot(grid_map,configs,parents,path):
             [configs[e[0]].x, configs[e[1]].x],
             "--g",
         )
-
+    
     for i in range(1, len(path)):
         plt.plot(
             [configs[path[i - 1]].y, configs[path[i]].y],
@@ -125,6 +129,7 @@ class RRT(Point):
         path = [configs.index(p) for p in path_objects]
 
         return path
+        
     def rrt(self):
         configs = []
         configs.append(self.start)
@@ -179,73 +184,90 @@ class RRT(Point):
             
             if self.is_segment_free(qnear,qnew,self.edge_divisions):
                 configs.append(qnew)
-                parents[qnew] = qnear
                 costs[qnew] = costs[qnear] + qnew.dist(qnear)
-
                 qnew_neighbors = []
+                qmin = qnear
+                #cost Optimization
                 for j in configs:
-                    if qnew.dist(j)<=self.search_radius and self.is_segment_free(qnew,j,self.edge_divisions):
+                    if qnew.dist(j) < self.search_radius and self.is_segment_free(qnew,j,self.edge_divisions):
                         qnew_neighbors.append(j)
                         new_cost = costs[j] + qnew.dist(j)
                         if new_cost < costs[qnew]:
-                            parents[qnew] = j
-                            costs[qnew] = new_cost
-                
+                            qmin = j
+
+                if qnew not in parents:
+                    parents[qnew] = qmin
+                    costs[qnew] = new_cost
+                ## Rewiring
                 for neighbor in qnew_neighbors:
-                    new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
-                    if new_neighbor_cost < costs[neighbor]:
-                        parents[neighbor] = qnew
-                        costs[neighbor] = new_neighbor_cost
+                    if neighbor != qmin:
+                        new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
+                        if new_neighbor_cost < costs[neighbor]:
+                            parents[neighbor] = qnew
+                            costs[neighbor] = new_neighbor_cost
 
         configs.append(self.goal)
+        closest = self.start
         min_distance = float('inf')
         for i in configs:
             new_distance = self.goal.dist(i)
-            if new_distance < min_distance:
+            if new_distance < min_distance and i!=self.goal:
                 min_distance = new_distance
-                parents[self.goal] = i
+                closest = i
+        parents[self.goal] = closest
 
         return configs, parents
 
     
 if __name__ == "__main__":
 
-    graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),
-                sample_goal_probability=0.2,max_iter=100,dq=10,edge_divisions=100,min_dist_to_goal=5)
+    graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),sample_goal_probability=0.2,
+                max_iter=1000,dq=10,edge_divisions=100,min_dist_to_goal=5)
     try:
-        # configs, parents= graph.rrt()
-        # path = graph.reconstruct_path(configs,parents)
+    #     # configs, parents= graph.rrt()
+    #     # path = graph.reconstruct_path(configs,parents)
         
-        # total_distance = 0
-        # for i,j in zip(path,path[1:]):
-        #     total_distance += configs[i].dist(configs[j])
-        # print(len(path))
-        # print(total_distance)
-        # plot(grid_map,configs,parents,path)
-        # plt.show()
-        # #####
-        # configs, parents, smooth_path = graph.smooth(configs,parents,path)
-        # total_distance = 0
-        # for i,j in zip(smooth_path,smooth_path[1:]):
-        #     total_distance += configs[i].dist(configs[j])
-        # print(len(smooth_path))
-        # print(total_distance)
+    #     # total_distance = 0
+    #     # for i,j in zip(path,path[1:]):
+    #     #     total_distance += configs[i].dist(configs[j])
+    #     # print(len(path))
+    #     # print(total_distance)
+    #     # plot(grid_map,configs,parents,path)
+    #     # plt.show()
+    #     # #####
+    #     # configs, parents, smooth_path = graph.smooth(configs,parents,path)
+    #     # total_distance = 0
+    #     # for i,j in zip(smooth_path,smooth_path[1:]):
+    #     #     total_distance += configs[i].dist(configs[j])
+    #     # print(len(smooth_path))
+    #     # print(total_distance)
 
-        # plot(grid_map, configs,parents,smooth_path)
-        # plt.show()
+    #     # plot(grid_map, configs,parents,smooth_path)
+    #     # plt.show()
 
         configs, parents = graph.rrt_star()
         path = graph.reconstruct_path(configs,parents)
+        print(path)
         plot(grid_map, configs,parents,path)
         plt.show()
 
-        # total_distance = 0
-        # plot(grid_map, configs, edges, path)
-        # for i,j in zip(path,path[1:]):
-        #     total_distance += configs[i].dist(configs[j])
-        # print(total_distance)
-        # print(len(path))
-        # plt.show()
+    #     # total_distance = 0
+    #     # plot(grid_map, configs, edges, path)
+    #     # for i,j in zip(path,path[1:]):
+    #     #     total_distance += configs[i].dist(configs[j])
+    #     # print(total_distance)
+    #     # print(len(path))
+    #     # plt.show()
 
     except TypeError:
         print("No path found")
+
+    # for i in range(10):
+    #     configs, parents = graph.rrt_star()
+    #     for key,value in parents.items():
+    #         if key==value:
+    #             print("We have loops")
+    #             break
+    #     print("No loops")
+        # plot(grid_map,graph1,[])
+        # plt.show()
