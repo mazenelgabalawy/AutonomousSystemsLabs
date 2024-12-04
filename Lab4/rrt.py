@@ -2,20 +2,17 @@ import numpy as np
 import math
 from matplotlib import pyplot as plt
 from PIL import Image
-import random
 
 from Point import Point
 
 # Load grid map
-image = Image.open("./data/map0.png").convert("L")
+image = Image.open("./data/map2.png").convert("L")
 grid_map = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
 # binarize the image
 grid_map[grid_map > 0.5] = 1
 grid_map[grid_map <= 0.5] = 0
 # Invert colors to make 0 -> free and 1 -> occupied
 grid_map = (grid_map * -1) + 1
-
-
 
 def plot(grid_map,configs,parents,path):
     
@@ -24,14 +21,10 @@ def plot(grid_map,configs,parents,path):
         if child != None:
             edges.append((configs.index(parent),configs.index(child)))
 
-            
-    # matches = [key for key, value in parents.items() if key == value]
-    # print(matches)
-
     plt.figure(figsize=(10, 10))
     plt.matshow(grid_map, fignum=0)
-    for i,v in enumerate(configs):
-        plt.plot(v.y, v.x, "+w")
+    # for i,v in enumerate(configs):
+    #     plt.plot(v.y, v.x, "+w")
         # plt.text(v.y, v.x, i, fontsize=14, color="w")
 
     for e in edges:
@@ -52,8 +45,7 @@ def plot(grid_map,configs,parents,path):
     # Goal
     plt.plot(configs[-1].y, configs[-1].x, "g*")
 
-
-class RRT(Point):
+class RRT:
     
     def __init__(self,gridmap,start,goal,sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=10,min_dist_to_goal=10,search_radius=20):
 
@@ -68,15 +60,19 @@ class RRT(Point):
         self.search_radius = search_radius
 
     def random_sample(self,gridmap,p):
-        """Sample a random point in the gridmap.
+        """Sample a random point in the gridmap in valid space.
 
         p: probability that we sample the goal point.
 
         """
-        x = random.randint(0,gridmap.shape[0]-1)
-        y = random.randint(0,gridmap.shape[1]-1)
+
+        valid_rows,valid_cols = np.where(gridmap == 0) # get indicies for valid configs
+        rand_idx = np.random.choice(len(valid_cols)) # select random index
     
-        if random.uniform(0,1) < p:
+        x = valid_rows[rand_idx]
+        y = valid_cols[rand_idx]
+
+        if np.random.uniform(0,1) < p:
             point = self.goal
         else:
             point = Point(x,y)
@@ -194,11 +190,11 @@ class RRT(Point):
                         new_cost = costs[j] + qnew.dist(j)
                         if new_cost < costs[qnew]:
                             qmin = j
+                            costs[qnew] = new_cost
 
                 if qnew not in parents:
                     parents[qnew] = qmin
-                    costs[qnew] = new_cost
-                ## Rewiring
+                # Rewiring
                 for neighbor in qnew_neighbors:
                     if neighbor != qmin:
                         new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
@@ -221,35 +217,36 @@ class RRT(Point):
     
 if __name__ == "__main__":
 
-    graph = RRT(gridmap=grid_map,start=(10, 10) ,goal=(90, 70),sample_goal_probability=0.2,
-                max_iter=1000,dq=10,edge_divisions=100,min_dist_to_goal=5)
+    graph = RRT(gridmap=grid_map,start=(8, 31) ,goal=(139, 38),sample_goal_probability=0.2,
+                max_iter=20000,dq=10,edge_divisions=20,min_dist_to_goal=0,search_radius=10)
     try:
-    #     # configs, parents= graph.rrt()
-    #     # path = graph.reconstruct_path(configs,parents)
-        
-    #     # total_distance = 0
-    #     # for i,j in zip(path,path[1:]):
-    #     #     total_distance += configs[i].dist(configs[j])
-    #     # print(len(path))
-    #     # print(total_distance)
-    #     # plot(grid_map,configs,parents,path)
-    #     # plt.show()
-    #     # #####
-    #     # configs, parents, smooth_path = graph.smooth(configs,parents,path)
-    #     # total_distance = 0
-    #     # for i,j in zip(smooth_path,smooth_path[1:]):
-    #     #     total_distance += configs[i].dist(configs[j])
-    #     # print(len(smooth_path))
-    #     # print(total_distance)
-
-    #     # plot(grid_map, configs,parents,smooth_path)
-    #     # plt.show()
-
-        configs, parents = graph.rrt_star()
+        configs, parents= graph.rrt()
         path = graph.reconstruct_path(configs,parents)
-        print(path)
-        plot(grid_map, configs,parents,path)
+        total_distance = 0
+        for i,j in zip(path,path[1:]):
+            total_distance += configs[i].dist(configs[j])
+        print(total_distance)
+        plot(grid_map,configs,parents,[])
         plt.show()
+        #####
+        configs, parents, smooth_path = graph.smooth(configs,parents,path)
+        total_distance = 0
+        for i,j in zip(smooth_path,smooth_path[1:]):
+            total_distance += configs[i].dist(configs[j])
+        print(total_distance)
+        plot(grid_map, configs,parents,smooth_path)
+        plt.show()
+
+        # configs, parents = graph.rrt_star()
+        # # for key,value in parents.items():
+        # #     if key==value:
+        # #         print("We have loops")
+        # #         break
+        # # print("No loops")
+        # # path = graph.reconstruct_path(configs,parents)
+        # # print(path)
+        # plot(grid_map, configs,parents,[])
+        # plt.show()
 
     #     # total_distance = 0
     #     # plot(grid_map, configs, edges, path)
