@@ -1,18 +1,9 @@
 import numpy as np
-import math
 from matplotlib import pyplot as plt
 from PIL import Image
-
 from Point import Point
+import sys
 
-# Load grid map
-image = Image.open("./data/map2.png").convert("L")
-grid_map = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
-# binarize the image
-grid_map[grid_map > 0.5] = 1
-grid_map[grid_map <= 0.5] = 0
-# Invert colors to make 0 -> free and 1 -> occupied
-grid_map = (grid_map * -1) + 1
 
 def plot(grid_map,configs,parents,path):
     
@@ -46,20 +37,17 @@ def plot(grid_map,configs,parents,path):
     plt.plot(configs[-1].y, configs[-1].x, "g*")
 
 class RRT:
-    
-    def __init__(self,gridmap,start,goal,sample_goal_probability=0.2,max_iter=10000,dq=10,edge_divisions=10,min_dist_to_goal=10,search_radius=20):
 
+    def __init__(self,gridmap,max_iter,dq,p,start_x,start_y,goal_x,goal_y):
         self.gridmap = gridmap
-        self.start = Point(start[0],start[1])
-        self.goal = Point(goal[0],goal[1])
-        self.sample_goal_probability = sample_goal_probability
         self.max_iter = max_iter
         self.dq = dq
-        self.edge_divisions = edge_divisions
-        self.min_dist_to_goal = min_dist_to_goal
-        self.search_radius = search_radius
+        self.p = p
+        self.start = Point(start_x,start_y)
+        self.goal = Point(goal_x,goal_y)
 
-    def random_sample(self,gridmap,p):
+    def sample_random_point(self,gridmap,p):
+
         """Sample a random point in the gridmap in valid space.
 
         p: probability that we sample the goal point.
@@ -77,7 +65,7 @@ class RRT:
         else:
             point = Point(x,y)
         return point
-
+    
     def nearest_vertex(self,qrand,configs):
         min_distance = np.inf
         qnearest = Point(0,0)
@@ -87,9 +75,8 @@ class RRT:
                 qnearest = configs[i]
 
         return qnearest
-    
-    def new_config(self,qrand,qnear,dq):
 
+    def get_qnew(self,qrand,qnear,dq):
         direction = qnear.vector(qrand)
         distance = direction.norm()
         unit_vector = direction.unit()
@@ -99,172 +86,69 @@ class RRT:
 
         step = unit_vector*min(dq,distance)
         return qnear.__add__(step)
-        
-    def is_segment_free(self,q1,q2,divisions):
-            p1 = q1.numpy()
-            p2 = q2.numpy()
+    
+    def is_segment_free(self,p1,p2):
+        p1 = p1.numpy()
+        p2 = p2.numpy()
 
-            x = np.int_(np.linspace(p1,p2,divisions))
-            x = [tuple(i) for i in x]
+        ps = np.int_(np.linspace(p1,p2,20))
+        for x, y in ps:
+            if self.gridmap[x, y] == 1:
+                return False
 
-            for i in x:
-                if grid_map[i] == 1:
-                    return False
-
-            return True
-
+        return True
+    
     def reconstruct_path(self,configs,parents):
-        current = configs[-1]
-        path_objects = [current]
+        path = [(self.goal.x,self.goal.y)]
 
-        while current in parents.keys():
-            current = parents[current]
-            path_objects = [current] + path_objects
-
-        path_objects = path_objects[1:]
-        path = [configs.index(p) for p in path_objects]
+        for parent, child in parents.items():
+            if child != None:
+                path.append(parent.to_str())
 
         return path
-        
-    def rrt(self):
+
+    def run(self):
         configs = []
         configs.append(self.start)
         parents = {}
         parents[self.start] = None
 
         for i in range(self.max_iter):
-            qrand = self.random_sample(self.gridmap,self.sample_goal_probability)
+            qrand = self.sample_random_point(self.gridmap,self.p)
             qnear = self.nearest_vertex(qrand,configs)
-            qnew = self.new_config(qrand,qnear,self.dq)
-
-            if self.is_segment_free(qnear,qnew,self.edge_divisions):
+            qnew = self.get_qnew(qrand,qnear,self.dq)
+            if self.is_segment_free(qnear,qnew):
                 configs.append(qnew)
-                parents[qnew] = qnear
+                parents[qnear] = qnew
 
-                if qnew.dist(self.goal) < self.min_dist_to_goal and self.is_segment_free(self.goal,qnew,self.edge_divisions):
+                if qnew.dist(self.goal)==0:
                     configs.append(self.goal)
-                    parents[self.goal] = qnew
-                    print("Number of iterations: ", i)
-                    return configs, parents
+                    path = self.reconstruct_path(configs,parents)
+                    print("Path found in " + str(i) + " iterations")
+                    return configs,parents, path
+        
         return None
-    
-    def smooth(self,configs,parents,path):
-        j = -1
-        i = 0
-        path_to_goal = [path[-1]]
 
-        while path_to_goal[0]!=0:
-            if self.is_segment_free(configs[path[i]],configs[j],self.edge_divisions):
-                path_to_goal = [path[i]] + path_to_goal
-                j = path[i]
-                i = 0
-            else:
-                i += 1
 
-        return configs,parents,path_to_goal
-
-    def rrt_star(self):
-        configs = []
-        configs.append(self.start)
-        parents = {}
-        parents[self.start] = None
-
-        # Cost of reaching the start node (this is typically 0)
-        costs = {}
-        costs[self.start] = 0
-
-        for i in range(self.max_iter):
-            qrand = self.random_sample(self.gridmap,self.sample_goal_probability)
-            qnear = self.nearest_vertex(qrand,configs)
-            qnew = self.new_config(qrand,qnear,self.dq)
-            
-            if self.is_segment_free(qnear,qnew,self.edge_divisions):
-                configs.append(qnew)
-                costs[qnew] = costs[qnear] + qnew.dist(qnear)
-                qnew_neighbors = []
-                qmin = qnear
-                #cost Optimization
-                for j in configs:
-                    if qnew.dist(j) < self.search_radius and self.is_segment_free(qnew,j,self.edge_divisions):
-                        qnew_neighbors.append(j)
-                        new_cost = costs[j] + qnew.dist(j)
-                        if new_cost < costs[qnew]:
-                            qmin = j
-                            costs[qnew] = new_cost
-
-                if qnew not in parents:
-                    parents[qnew] = qmin
-                # Rewiring
-                for neighbor in qnew_neighbors:
-                    if neighbor != qmin:
-                        new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
-                        if new_neighbor_cost < costs[neighbor]:
-                            parents[neighbor] = qnew
-                            costs[neighbor] = new_neighbor_cost
-
-        configs.append(self.goal)
-        closest = self.start
-        min_distance = float('inf')
-        for i in configs:
-            new_distance = self.goal.dist(i)
-            if new_distance < min_distance and i!=self.goal:
-                min_distance = new_distance
-                closest = i
-        parents[self.goal] = closest
-
-        return configs, parents
-
-    
 if __name__ == "__main__":
+    gridmap = sys.argv[1]
+    max_iter = int(sys.argv[2])
+    dq = float(sys.argv[3])
+    p = float(sys.argv[4])
+    start_x = float(sys.argv[5])
+    start_y = float(sys.argv[6])
+    goal_x = float(sys.argv[7])
+    goal_y = float(sys.argv[8])
 
-    graph = RRT(gridmap=grid_map,start=(8, 31) ,goal=(139, 38),sample_goal_probability=0.2,
-                max_iter=20000,dq=10,edge_divisions=20,min_dist_to_goal=0,search_radius=10)
-    try:
-        configs, parents= graph.rrt()
-        path = graph.reconstruct_path(configs,parents)
-        total_distance = 0
-        for i,j in zip(path,path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        plot(grid_map,configs,parents,[])
-        plt.show()
-        #####
-        configs, parents, smooth_path = graph.smooth(configs,parents,path)
-        total_distance = 0
-        for i,j in zip(smooth_path,smooth_path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        plot(grid_map, configs,parents,smooth_path)
-        plt.show()
+    image = Image.open(gridmap).convert("L")
+    gridmap = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
+    # binarize the image
+    gridmap[gridmap > 0.5] = 1
+    gridmap[gridmap <= 0.5] = 0
+    # Invert colors to make 0 -> free and 1 -> occupied
+    gridmap = (gridmap * -1) + 1
 
-        # configs, parents = graph.rrt_star()
-        # # for key,value in parents.items():
-        # #     if key==value:
-        # #         print("We have loops")
-        # #         break
-        # # print("No loops")
-        # # path = graph.reconstruct_path(configs,parents)
-        # # print(path)
-        # plot(grid_map, configs,parents,[])
-        # plt.show()
+    rrt = RRT(gridmap,max_iter,dq,p,start_x,start_y,goal_x,goal_y)
 
-    #     # total_distance = 0
-    #     # plot(grid_map, configs, edges, path)
-    #     # for i,j in zip(path,path[1:]):
-    #     #     total_distance += configs[i].dist(configs[j])
-    #     # print(total_distance)
-    #     # print(len(path))
-    #     # plt.show()
-
-    except TypeError:
-        print("No path found")
-
-    # for i in range(10):
-    #     configs, parents = graph.rrt_star()
-    #     for key,value in parents.items():
-    #         if key==value:
-    #             print("We have loops")
-    #             break
-    #     print("No loops")
-        # plot(grid_map,graph1,[])
-        # plt.show()
+    configs,parents,path = rrt.run()
+    print(path)
