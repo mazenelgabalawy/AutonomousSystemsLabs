@@ -213,57 +213,59 @@ class RRT:
         return smooth_path,smooth_path_cost
 
 if __name__ == "__main__":
+    try:
+        # Get command line arguments
+        gridmap = sys.argv[1]
+        max_iter = int(sys.argv[2])
+        dq = float(sys.argv[3])
+        p = float(sys.argv[4])
+        start_x = float(sys.argv[5])
+        start_y = float(sys.argv[6])
+        goal_x = float(sys.argv[7])
+        goal_y = float(sys.argv[8])
 
-    # Get command line arguments
-    gridmap = sys.argv[1]
-    max_iter = int(sys.argv[2])
-    dq = float(sys.argv[3])
-    p = float(sys.argv[4])
-    start_x = float(sys.argv[5])
-    start_y = float(sys.argv[6])
-    goal_x = float(sys.argv[7])
-    goal_y = float(sys.argv[8])
+        # Set start and goal points
+        start = (start_x,start_y)
+        goal = (goal_x,goal_y)
 
-    # Set start and goal points
-    start = (start_x,start_y)
-    goal = (goal_x,goal_y)
+        image = Image.open(gridmap).convert("L")
+        gridmap = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
+        # binarize the image
+        gridmap[gridmap > 0.5] = 1
+        gridmap[gridmap <= 0.5] = 0
+        # Invert colors to make 0 -> free and 1 -> occupied
+        gridmap = (gridmap * -1) + 1
 
-    image = Image.open(gridmap).convert("L")
-    gridmap = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
-    # binarize the image
-    gridmap[gridmap > 0.5] = 1
-    gridmap[gridmap <= 0.5] = 0
-    # Invert colors to make 0 -> free and 1 -> occupied
-    gridmap = (gridmap * -1) + 1
+        rrt = RRT(gridmap,max_iter,dq,p,start,goal)
 
-    rrt = RRT(gridmap,max_iter,dq,p,start,goal)
-
-    tree,path,path_cost = rrt.run()
-    smooth_path,smooth_path_cost = rrt.smooth(path)
+        tree,path,path_cost = rrt.run()
+        smooth_path,smooth_path_cost = rrt.smooth(path)
 
 
-    # Original Path
-    print("Total Path Cost: ", path_cost)
-    print("Path length: ", len(path))
-    print("Path to follow: ")
-    print(*path,sep='\n')
-    print('\n')
-    plot(gridmap,start,goal,tree,path)
-    plt.title("Original Path",fontsize = 18)
-    plt.show()
+        # Original Path
+        print("Total Path Cost: ", path_cost)
+        print("Path length: ", len(path))
+        print("Path to follow: ")
+        print(*path,sep='\n')
+        print('\n')
+        plot(gridmap,start,goal,tree,path)
+        plt.title("Original Path",fontsize = 18)
+        plt.show()
 
-    # Smooth Path
-    print("Smooth Path Cost: ", smooth_path_cost)
-    print("Smooth Path length: ", len(path))
-    print("Smooth Path: ")
-    print(*smooth_path,sep='\n')
-    plot(gridmap,start,goal,tree,smooth_path)
-    plt.title("Smooth Path",fontsize = 18)
-    plt.show()
+        # Smooth Path
+        print("Smooth Path Cost: ", smooth_path_cost)
+        print("Smooth Path length: ", len(path))
+        print("Smooth Path: ")
+        print(*smooth_path,sep='\n')
+        plot(gridmap,start,goal,tree,smooth_path)
+        plt.title("Smooth Path",fontsize = 18)
+        plt.show()
 
-    # Overlay both paths
-    plot2(gridmap,start,goal,tree,path,smooth_path)
-    plt.title("Original-Path vs Smooth-Path", fontsize = 18)
-    plt.show()
-
+        # Overlay both paths
+        plot2(gridmap,start,goal,tree,path,smooth_path)
+        plt.title("Original-Path vs Smooth-Path", fontsize = 18)
+        plt.show()
+    except IndexError:
+        print("Not Enough arguments. Please use the following interface to run the program:\n")
+        print("\n python3 rrt.py path_to_grid_map_image K Δq p qstart_x qstart_y qgoal_x qgoal_y")
     
