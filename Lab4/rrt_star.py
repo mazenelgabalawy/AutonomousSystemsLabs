@@ -69,22 +69,26 @@ class RRTStar:
         self.max_search_distance = max_search_distance
         self.start = Point(start[0],start[1])
         self.goal = Point(goal[0],goal[1])
+        self.valid_rows,self.valid_cols = np.where(self.gridmap == 0) # Get indcies for valid configurations
+
 
     def sample_random_point(self,valid_rows,valid_cols,p):
+            
         """
-        Samples a random point from the grid map, with a given probability of returning the goal point.
+        Samples a random point from the set of valid grid locations, with a probability of returning the goal point.
 
         Parameters:
-        - gridmap (2D array): A grid representing the environment, where `0` indicates free space and non-zero values indicate obstacles.
+        - valid_rows (array-like): A list or array of valid row indices for free spaces in the grid.
+        - valid_cols (array-like): A list or array of valid column indices for free spaces in the grid.
         - p (float): The probability of returning the goal point instead of a randomly chosen point. Must be between 0 and 1.
 
         Returns:
-        - Point: A randomly sampled point from the grid map. The point will either be the goal (with probability `p`) or a random valid point (with probability `1 - p`).
+        - Point: A randomly sampled point from the set of valid grid locations. The point will either be the goal (with probability `p`) or a random valid point (with probability `1 - p`).
 
         Notes:
-        - The function first identifies all valid (free) grid locations (where `gridmap == 0`).
-        - A random index is chosen from the valid grid locations, and that index is used to generate a random point.
-        - If the random uniform value is less than `p`, the goal point is returned instead of a random valid point.
+        - The function selects a random index from the `valid_rows` and `valid_cols` arrays to determine a valid free point in the grid.
+        - With probability `p`, the function returns the goal point instead of a random valid point.
+        - This method assumes that `valid_rows` and `valid_cols` represent the valid free spaces in the grid.
         """
 
         rand_idx = np.random.choice(len(valid_cols)) # Select random index
@@ -98,13 +102,28 @@ class RRTStar:
             return self.goal
         else:
             return Point(x,y)
-    def nearest_vertex(self,qrand,configs):
+        
+    def nearest_vertex(self,qrand,tree):
+        """
+        Finds the nearest vertex in the tree to a randomly sampled point.
+
+        Parameters:
+        - qrand (Point): The randomly sampled point for which the nearest vertex in the tree is to be found.
+        - tree (dict): A dictionary representing the RRT tree, where keys are vertices (Points) and values are their parent vertices.
+
+        Returns:
+        - Point: The nearest vertex in the tree to the given random point `qrand`.
+
+        Notes:
+        - The function calculates the Euclidean distance between the random point and all vertices in the tree, selecting the vertex with the minimum distance.
+        """
+
         min_distance = np.inf
-        qnearest = Point(0,0)
-        for i in range(len(configs)):
-            if qrand.dist(configs[i]) < min_distance:
-                min_distance = qrand.dist(configs[i])
-                qnearest = configs[i]
+        # Loop over all existing Points and find nearest to qrand
+        for point in tree.keys():
+            if qrand.dist(point) < min_distance and qrand.dist(point)!=0:
+                min_distance = qrand.dist(point)
+                qnearest = point
 
         return qnearest
     
@@ -159,7 +178,7 @@ class RRTStar:
         p1 = p1.numpy()
         p2 = p2.numpy()
 
-        ps = np.int_(np.linspace(p1,p2,20)) # Divide the line into 20 points
+        ps = np.int_(np.linspace(p1,p2,50)) # Divide the line into 20 points
         # Check all points on the line if they are invalid
         for x, y in ps:
             if self.gridmap[x, y] == 1:
@@ -218,12 +237,9 @@ class RRTStar:
 
         reached_goal = False
 
-        valid_rows,valid_cols = np.where(gridmap == 0) # Get indcies for valid configurations
-
-
         for i in range(self.max_iter):
-            qrand = self.sample_random_point(valid_rows,valid_cols,self.p)
-            qnear = self.nearest_vertex(qrand,configs)
+            qrand = self.sample_random_point(self.valid_rows,self.valid_cols,self.p)
+            qnear = self.nearest_vertex(qrand,parents)
             qnew = self.get_qnew(qrand,qnear,self.dq)
             
             if self.is_segment_free(qnear,qnew):
@@ -240,7 +256,6 @@ class RRTStar:
                             qmin = j
                             costs[qnew] = new_cost
                             
-
                 if qnew not in parents:
                     parents[qnew] = qmin
 

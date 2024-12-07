@@ -7,7 +7,7 @@ import random
 from Point import Point
 
 # Load grid map
-image = Image.open("./data/map0.png").convert("L")
+image = Image.open("./data/map2.png").convert("L")
 grid_map = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
 # binarize the image
 grid_map[grid_map > 0.5] = 1
@@ -221,8 +221,8 @@ class RRT:
 
 
 if __name__ == "__main__":
-    test1 = RRT(grid_map,(10,10),(90,70),sample_goal_probability=0.2,max_iter=500,dq = 5,edge_divisions=100,min_dist_to_goal=0)
-    # try:
+    graph = RRT(gridmap=grid_map,start=(8, 31) ,goal=(139, 38),sample_goal_probability=0.2,
+                max_iter=20000,dq=10,edge_divisions=10,min_dist_to_goal=0,search_radius=10)    # try:
     #     # graph1,start1,goal1 = test1.rrt()
     #     # path = []
     #     # path = reconstruct_path(graph1,start1,goal1,path)
@@ -256,10 +256,14 @@ if __name__ == "__main__":
     # print(self_referncing)
     # print([graph1[i] for i in self_referncing])
 
-    graph1,start1,goal1 = test1.rrt_star()
+    # graph1,start1,goal1 = test1.rrt_star()
     # path = []
     # path = reconstruct_path(graph1,start1,goal1,path)
-    plot(grid_map,graph1,[])
+    # plot(grid_map,graph1,[])
+    # plt.show()
+
+
+    graph1,start1,goal1 = graph.rrt()
+    path = []
+    plot(grid_map,graph1,path)
     plt.show()
-
-

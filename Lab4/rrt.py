@@ -130,26 +130,27 @@ class RRT:
         self.p = p
         self.start = Point(start[0],start[1])
         self.goal = Point(goal[0],goal[1])
-        
+        self.valid_rows,self.valid_cols = np.where(self.gridmap == 0) # Get indcies for valid configurations
 
-    def sample_random_point(self,gridmap,p):
+    def sample_random_point(self,valid_rows,valid_cols,p):
+            
         """
-        Samples a random point from the grid map, with a given probability of returning the goal point.
+        Samples a random point from the set of valid grid locations, with a probability of returning the goal point.
 
         Parameters:
-        - gridmap (2D array): A grid representing the environment, where `0` indicates free space and non-zero values indicate obstacles.
+        - valid_rows (array-like): A list or array of valid row indices for free spaces in the grid.
+        - valid_cols (array-like): A list or array of valid column indices for free spaces in the grid.
         - p (float): The probability of returning the goal point instead of a randomly chosen point. Must be between 0 and 1.
 
         Returns:
-        - Point: A randomly sampled point from the grid map. The point will either be the goal (with probability `p`) or a random valid point (with probability `1 - p`).
+        - Point: A randomly sampled point from the set of valid grid locations. The point will either be the goal (with probability `p`) or a random valid point (with probability `1 - p`).
 
         Notes:
-        - The function first identifies all valid (free) grid locations (where `gridmap == 0`).
-        - A random index is chosen from the valid grid locations, and that index is used to generate a random point.
-        - If the random uniform value is less than `p`, the goal point is returned instead of a random valid point.
+        - The function selects a random index from the `valid_rows` and `valid_cols` arrays to determine a valid free point in the grid.
+        - With probability `p`, the function returns the goal point instead of a random valid point.
+        - This method assumes that `valid_rows` and `valid_cols` represent the valid free spaces in the grid.
         """
 
-        valid_rows,valid_cols = np.where(gridmap == 0) # Get indcies for valid configurations
         rand_idx = np.random.choice(len(valid_cols)) # Select random index
 
         # Select random valid point
@@ -161,7 +162,7 @@ class RRT:
             return self.goal
         else:
             return Point(x,y)
-    
+
     def nearest_vertex(self,qrand,tree):
         """
         Finds the nearest vertex in the tree to a randomly sampled point.
@@ -180,7 +181,7 @@ class RRT:
         min_distance = np.inf
         # Loop over all existing Points and find nearest to qrand
         for point in tree.keys():
-            if qrand.dist(point) < min_distance and qrand.dist(point)!=0:
+            if qrand.dist(point) < min_distance and qrand.dist(point)!=0: # Ensure nearest vertex is not qrand 
                 min_distance = qrand.dist(point)
                 qnearest = point
 
@@ -237,7 +238,7 @@ class RRT:
         p1 = p1.numpy()
         p2 = p2.numpy()
 
-        ps = np.int_(np.linspace(p1,p2,100)) # Divide the line into 20 points
+        ps = np.int_(np.linspace(p1,p2,50)) # Divide the line into 20 points
         # Check all points on the line if they are invalid
         for x, y in ps:
             if self.gridmap[x, y] == 1:
@@ -315,7 +316,7 @@ class RRT:
         tree[self.start] = None
 
         for i in range(self.max_iter):
-            qrand = self.sample_random_point(self.gridmap,self.p) # Sample a point from the grid
+            qrand = self.sample_random_point(self.valid_rows,self.valid_cols,self.p) # Sample a point from the grid
             qnear = self.nearest_vertex(qrand,tree) # Find the nearest node to qrand
             qnew = self.get_qnew(qrand,qnear,self.dq) # Create a new node in the direction of qrand
             if self.is_segment_free(qnear,qnew):# Check if line between qnear and qnew doesn't pass through and obstacle
@@ -324,9 +325,9 @@ class RRT:
                     tree[self.goal] = qnew
                     path,path_cost = self.reconstruct_path(tree,self.goal)
                     print("Path found in " + str(i) + " iterations")
-                    return tree, path,path_cost
+                    return tree, path,path_cost,i
         print("No Path Found")
-        return tree,[],np.inf
+        return tree,[],np.inf,i
     
     def smooth(self,path):
         
@@ -399,33 +400,39 @@ if __name__ == "__main__":
     gridmap = (gridmap * -1) + 1
     # Print Gridmap without any nodes
     plot(gridmap,start,goal,{},[])
-    plt.title(f'{map}')
+    plt.title(f"{map.split('/')[1].split('.')[0]}",fontsize = 18)
     plt.show()
 
     rrt = RRT(gridmap,max_iter,dq,p,start,goal)
 
-    tree,path,path_cost = rrt.run()
+    tree,path,path_cost,i = rrt.run()
     smooth_path,smooth_path_cost = rrt.smooth(path)
     
-    # Plot Original Path
-    print("Total Path Cost: ", path_cost)
-    print("Path to follow: ")
-    print(*path,sep='\n')
-    print('\n')
-    plot(gridmap,start,goal,tree,path)
-    plt.title("Original Path",fontsize = 18)
-    plt.show()
 
-    # Plot Smooth Path
-    print("Smooth Path Cost: ", smooth_path_cost)
-    print("Smooth Path: ")
-    print(*smooth_path,sep='\n')
-    plot(gridmap,start,goal,tree,smooth_path)
-    plt.title("Smooth Path",fontsize = 18)
-    plt.show()
+    if path == []:
+        plot(gridmap,start,goal,tree,[])
+        plt.title("No Path Found",fontsize = 18)
+        plt.show()
+    else:
+        # Plot Original Path
+        print("Total Path Cost: ", path_cost)
+        print("Path to follow: ")
+        print(*path,sep='\n')
+        print('\n')
+        plot(gridmap,start,goal,tree,path)
+        plt.title(f"Original Path with cost {round(path_cost,2)} found in {i} iterations",fontsize = 18)
+        plt.show()
 
-    # Overlay both paths
-    plot2(gridmap,start,goal,tree,path,smooth_path)
-    plt.title("Original-Path vs Smooth-Path", fontsize = 18)
-    plt.show()
-    
+        # Plot Smooth Path
+        print("Smooth Path Cost: ", smooth_path_cost)
+        print("Smooth Path: ")
+        print(*smooth_path,sep='\n')
+        plot(gridmap,start,goal,tree,smooth_path)
+        plt.title(f"Smooth Path with cost {round(smooth_path_cost,2)}",fontsize = 18)
+        plt.show()
+
+        # Overlay both paths
+        plot2(gridmap,start,goal,tree,path,smooth_path)
+        plt.title("Original-Path vs Smooth-Path", fontsize = 18)
+        plt.show()
+        

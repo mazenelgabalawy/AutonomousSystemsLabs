@@ -3,9 +3,6 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from Point import Point
 
-
-
-
 # Load grid map
 image = Image.open("./data/map2.png").convert("L")
 grid_map = np.array(image.getdata()).reshape(image.size[0], image.size[1]) / 255
@@ -147,7 +144,7 @@ class RRT:
                     parents[self.goal] = qnew
                     print("Number of iterations: ", i)
                     return configs, parents
-        return None
+        return configs,parents
     
     def smooth(self,configs,parents,path):
         j = -1
@@ -219,33 +216,33 @@ class RRT:
 if __name__ == "__main__":
 
     graph = RRT(gridmap=grid_map,start=(8, 31) ,goal=(139, 38),sample_goal_probability=0.2,
-                max_iter=20000,dq=10,edge_divisions=20,min_dist_to_goal=0,search_radius=10)
-    try:
-        configs, parents= graph.rrt()
-        path = graph.reconstruct_path(configs,parents)
-        total_distance = 0
-        for i,j in zip(path,path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        plot(grid_map,configs,parents,[])
-        plt.show()
-        #####
-        configs, parents, smooth_path = graph.smooth(configs,parents,path)
-        total_distance = 0
-        for i,j in zip(smooth_path,smooth_path[1:]):
-            total_distance += configs[i].dist(configs[j])
-        print(total_distance)
-        plot(grid_map, configs,parents,smooth_path)
-        plt.show()
+                max_iter=30000,dq=10,edge_divisions=10,min_dist_to_goal=0,search_radius=10)
+    # try:
+        # configs, parents= graph.rrt()
+        # path = graph.reconstruct_path(configs,parents)
+        # total_distance = 0
+        # for i,j in zip(path,path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # plot(grid_map,configs,parents,[])
+        # plt.show()
+        # #####
+        # configs, parents, smooth_path = graph.smooth(configs,parents,path)
+        # total_distance = 0
+        # for i,j in zip(smooth_path,smooth_path[1:]):
+        #     total_distance += configs[i].dist(configs[j])
+        # print(total_distance)
+        # plot(grid_map, configs,parents,smooth_path)
+        # plt.show()
 
         # configs, parents = graph.rrt_star()
-        # # for key,value in parents.items():
-        # #     if key==value:
-        # #         print("We have loops")
-        # #         break
-        # # print("No loops")
-        # # path = graph.reconstruct_path(configs,parents)
-        # # print(path)
+        # for key,value in parents.items():
+        #     if key in value:
+        #         print("We have loops")
+        #         break
+        # print("No loops")
+        # path = graph.reconstruct_path(configs,parents)
+        # print(path)
         # plot(grid_map, configs,parents,[])
         # plt.show()
 
@@ -257,8 +254,8 @@ if __name__ == "__main__":
     #     # print(len(path))
     #     # plt.show()
 
-    except TypeError:
-        print("No path found")
+    # except TypeError:
+    #     print("No path found")
 
     # for i in range(10):
     #     configs, parents = graph.rrt_star()
@@ -269,3 +266,12 @@ if __name__ == "__main__":
     #     print("No loops")
         # plot(grid_map,graph1,[])
         # plt.show()
+    configs, parents = graph.rrt()
+    # for key,value in parents.items():
+    #     if key == value:
+    #         print("We have loops")
+    #         break
+    # print("No loops")
+    path = graph.reconstruct_path(configs,parents)
+    plot(grid_map,configs,parents,path)
+    plt.show()
