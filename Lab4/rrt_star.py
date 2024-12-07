@@ -294,6 +294,8 @@ class RRTStar:
 
         if self.goal in tree.keys():
             path,path_cost = self.reconstruct_path(tree,self.goal)
+            # path = []
+            # path_cost = 0
             return first_tree, first_path[:-1],first_path_cost,first_iter,tree,path,path_cost
         
         print("No Path Found")
