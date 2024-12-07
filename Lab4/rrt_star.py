@@ -61,6 +61,24 @@ def plot(gridmap,start,goal,tree,path,show_vertcies=False):
 
 
 class RRTStar:
+
+    """
+    A class to implement the RRT* (Rapidly-Exploring Random Tree Star) algorithm for path planning in a grid-based environment.
+    RRT* extends RRT by optimizing paths to minimize cost.
+
+    Attributes:
+        gridmap (np.ndarray): 2D numpy array representing the grid map of the environment. 
+                              Cells with value 0 are valid configurations; others are obstacles.
+        max_iter (int): The maximum number of iterations to grow the RRT*.
+        dq (float): Step size for extending the tree.
+        p (float): Probability of selecting the goal as the target in a given iteration (goal bias).
+        max_search_distance (float): Maximum distance to search for nearby nodes during the rewire step.
+        start (Point): Starting point for the RRT* algorithm, initialized as a Point object.
+        goal (Point): Goal point for the RRT* algorithm, initialized as a Point object.
+        valid_rows (np.ndarray): Array of row indices for valid configurations in the grid map.
+        valid_cols (np.ndarray): Array of column indices for valid configurations in the grid map.
+
+    """
     def __init__(self,gridmap,max_iter,dq,p,max_search_distance,start,goal):
         self.gridmap = gridmap
         self.max_iter = max_iter
@@ -220,16 +238,15 @@ class RRTStar:
         for i in range(2,len(path[1:])):
             path_cost += path[i-1].dist(path[i])
 
-        return path[1:-1],path_cost
+        return path[1:],path_cost
 
     
     def run(self):
-        configs = []
-        configs1 = configs
-        configs.append(self.start)
-        parents = {}
-        parents1 = parents
-        parents[self.start] = None
+
+        # Initialize the first tree
+        tree = {}
+        first_tree = tree
+        tree[self.start] = None
 
         # Cost of reaching the start node (this is typically 0)
         costs = {}
@@ -239,16 +256,15 @@ class RRTStar:
 
         for i in range(self.max_iter):
             qrand = self.sample_random_point(self.valid_rows,self.valid_cols,self.p)
-            qnear = self.nearest_vertex(qrand,parents)
+            qnear = self.nearest_vertex(qrand,tree)
             qnew = self.get_qnew(qrand,qnear,self.dq)
-            
+
             if self.is_segment_free(qnear,qnew):
-                configs.append(qnew)
                 costs[qnew] = costs[qnear] + qnew.dist(qnear)
                 qnew_neighbors = []
                 qmin = qnear
                 #cost Optimization
-                for j in configs:
+                for j in tree.keys():
                     if qnew.dist(j) < self.max_search_distance and self.is_segment_free(qnew,j):
                         qnew_neighbors.append(j)
                         new_cost = costs[j] + qnew.dist(j)
@@ -256,36 +272,32 @@ class RRTStar:
                             qmin = j
                             costs[qnew] = new_cost
                             
-                if qnew not in parents:
-                    parents[qnew] = qmin
+                if qnew not in tree:
+                    tree[qnew] = qmin
 
                 if qnew.dist(self.goal)==0 and reached_goal == False:
                     reached_goal = True
-                    configs1 = copy.deepcopy(configs)
-                    parents1 = copy.deepcopy(parents)
-                    path1,pah1_cost = self.reconstruct_path(parents,qnew)
+                    tree[self.goal] = qnew
+                    first_tree = copy.deepcopy(tree)
+                    first_path,first_path_cost = self.reconstruct_path(tree,self.goal)
+                    costs[self.goal] = first_path_cost
+                    first_iter = i
                     print(f"First path found after {i} iterations")
-                    
+
                 # Rewiring
                 for neighbor in qnew_neighbors:
                     if neighbor != qmin:
                         new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
                         if new_neighbor_cost < costs[neighbor]:
-                            parents[neighbor] = qnew
+                            tree[neighbor] = qnew
                             costs[neighbor] = new_neighbor_cost
 
-        configs.append(self.goal)
-        closest = self.start
-        min_distance = float('inf')
-        for i in configs:
-            new_distance = self.goal.dist(i)
-            if new_distance < min_distance and i!=self.goal:
-                min_distance = new_distance
-                closest = i
-        parents[self.goal] = closest
-
-        path,path_cost = self.reconstruct_path(parents,self.goal)
-        return configs1, parents1, path1, configs, parents,path
+        if self.goal in tree.keys():
+            path,path_cost = self.reconstruct_path(tree,self.goal)
+            return first_tree, first_path[:-1],first_path_cost,first_iter,tree,path,path_cost
+        
+        print("No Path Found")
+        return {},[],np.inf,0,tree,[],np.inf
 
 if __name__ == "__main__":
     if len(sys.argv)!=10:
@@ -315,14 +327,33 @@ if __name__ == "__main__":
     gridmap[gridmap <= 0.5] = 0
     # Invert colors to make 0 -> free and 1 -> occupied
     gridmap = (gridmap * -1) + 1
-    # # Print Gridmap without any nodes
-    # plot(gridmap,)
-    # plt.title(f'{map}')
-    # plt.show()
+    # Print Gridmap without any nodes
+    plot(gridmap,start,goal,{},[])
+    plt.title(f"{map.split('/')[1].split('.')[0]}",fontsize = 18)
+    plt.show()
 
     rrt_star = RRTStar(gridmap,max_iter,dq,p,max_search_distance,start,goal)
-    configs1,parents1,path1,configs,parents ,path= rrt_star.run()
-    plot(gridmap,start,goal,parents1,path1)
-    plt.show()
-    plot(gridmap,start,goal,parents,path)
-    plt.show()
+    first_tree, first_path,first_path_cost,first_iter,tree,final_path,final_path_cost= rrt_star.run()
+
+    if final_path == []:
+        plot(gridmap,start,goal,tree,[])
+        plt.title("No Path Found",fontsize = 18)
+        plt.show()
+    else:
+        # Plot First Path
+        print("First Path Cost: ", first_path_cost)
+        print("Path to follow: ")
+        print(*first_path,sep='\n')
+        print('\n')
+        plot(gridmap,start,goal,first_tree,first_path)
+        plt.title(f"First path found after {first_iter} iterations with cost {round(first_path_cost,2)}",fontsize=14)
+        plt.show()
+
+        # Plot Final Path
+        print("Final Path Cost: ", final_path_cost)
+        print("Path to follow: ")
+        print(*final_path,sep='\n')
+        print('\n')
+        plot(gridmap,start,goal,tree,final_path)
+        plt.title(f"Path found after {max_iter} iterations with cost {round(final_path_cost,2)}",fontsize=14)
+        plt.show()

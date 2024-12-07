@@ -123,6 +123,23 @@ def plot2(gridmap,start,goal,tree,original_path,smooth_path,show_vertcies=False)
     plt.legend()
 
 class RRT:
+
+    """
+    A class to implement the Rapidly-Exploring Random Tree (RRT) algorithm for path planning in a grid-based environment.
+
+    Attributes:
+        gridmap (np.ndarray): 2D numpy array representing the grid map of the environment. 
+                              Cells with value 0 are valid configurations; others are obstacles.
+        max_iter (int): The maximum number of iterations to grow the RRT.
+        dq (float): Step size for extending the tree.
+        p (float): Probability of selecting the goal as the target in a given iteration (goal bias).
+        start (Point): Starting point for the RRT algorithm, initialized as a Point object.
+        goal (Point): Goal point for the RRT algorithm, initialized as a Point object.
+        valid_rows (np.ndarray): Array of row indices for valid configurations in the grid map.
+        valid_cols (np.ndarray): Array of column indices for valid configurations in the grid map.
+
+    """
+
     def __init__(self,gridmap,max_iter,dq,p,start,goal):
         self.gridmap = gridmap
         self.max_iter = max_iter
@@ -325,7 +342,7 @@ class RRT:
                     tree[self.goal] = qnew
                     path,path_cost = self.reconstruct_path(tree,self.goal)
                     print("Path found in " + str(i) + " iterations")
-                    return tree, path,path_cost,i
+                    return tree, path,path_cost,i+1
         print("No Path Found")
         return tree,[],np.inf,i
     
