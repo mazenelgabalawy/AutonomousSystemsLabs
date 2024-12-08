@@ -241,61 +241,100 @@ class RRTStar:
         return path[1:],path_cost
 
     
-    def run(self):
 
-        # Initialize the first tree
+    def run(self):
+        
+        """
+        Builds the Rapidly-Exploring Random Tree Star (RRT*) to find an optimized path from the start node to the goal node.
+
+        Returns:
+        - tuple: A tuple containing:
+            - first_tree (dict): The RRT* tree at the iteration when the goal was first reached, where keys are vertices (Points) and values are their parent vertices.
+            - first_path (list): A list of vertices (Points) representing the initial path from the start to the goal (excluding the goal node). Returns an empty list if no path is found.
+            - first_path_cost (float): The cost of the initial path to the goal. Returns `np.inf` if no path is found.
+            - first_iter (int): The iteration number at which the goal was first reached. Returns 0 if no path is found.
+            - final_tree (dict): The RRT* tree after all iterations.
+            - final_path (list): A list of vertices (Points) representing the final optimized path from the start to the goal. Returns an empty list if no path is found.
+            - final_path_cost (float): The cost of the final optimized path to the goal. Returns `np.inf` if no path is found.
+
+        Procedure:
+        1. Initialize the tree with the start node as the root (no parent) and set the cost of the start node to 0.
+        2. Iteratively:
+            - Sample a random point (`qrand`) from the grid using `sample_random_point`.
+            - Find the nearest vertex (`qnear`) to `qrand` in the current tree using `nearest_vertex`.
+            - Steer toward `qrand` from `qnear` to generate a new point (`qnew`) using `get_qnew`.
+            - Check if the segment between `qnear` and `qnew` is obstacle-free using `is_segment_free`.
+            - If valid:
+                - Add `qnew` to the tree, assigning its parent to minimize cost, and update its cost.
+                - Rewire the tree by checking if the cost of neighboring nodes can be reduced through `qnew`.
+            - If `qnew` coincides with the goal and the goal is reached for the first time:
+                - Save the current tree and path, and record the cost and iteration number.
+        3. After all iterations:
+            - If the goal is in the tree, reconstruct the optimized path and return it with its cost.
+            - Otherwise, return an empty path and infinite cost.
+
+        Notes:
+        - The maximum number of iterations is defined by `self.max_iter`.
+        - The step size for tree expansion is controlled by `self.dq`.
+        - Rewiring optimizes the cost by reassigning parent nodes within a specified distance (`self.max_search_distance`).
+        - The path reconstruction is performed using `reconstruct_path`.
+        - A path is considered found when `qnew` coincides with the goal node.
+        """
+
+
+        # Initialize the tree with the starting node that has no parent
         tree = {}
-        first_tree = tree
         tree[self.start] = None
+        first_tree = tree # Copy Tree into first_tree (used to store the first path found)
 
         # Cost of reaching the start node (this is typically 0)
         costs = {}
         costs[self.start] = 0
 
-        reached_goal = False
+        reached_goal = False # Flag to mark when goal is reached for first time
 
         for i in range(self.max_iter):
-            qrand = self.sample_random_point(self.valid_rows,self.valid_cols,self.p)
-            qnear = self.nearest_vertex(qrand,tree)
-            qnew = self.get_qnew(qrand,qnear,self.dq)
+            qrand = self.sample_random_point(self.valid_rows,self.valid_cols,self.p) # Sample a point from the grid
+            qnear = self.nearest_vertex(qrand,tree) # Find the nearest node to qrand
+            qnew = self.get_qnew(qrand,qnear,self.dq) # Create new node in the direction of qrand
 
-            if self.is_segment_free(qnear,qnew):
-                costs[qnew] = costs[qnear] + qnew.dist(qnear)
-                qnew_neighbors = []
+            if self.is_segment_free(qnear,qnew): # Check if line between qnear and qnew pass through an object or not
+                costs[qnew] = costs[qnear] + qnew.dist(qnear) # update cost of qnew
+                qnew_neighbors = [] # Create list of neighbors of qnew
                 qmin = qnear
+
                 #cost Optimization
                 for j in tree.keys():
                     if qnew.dist(j) < self.max_search_distance and self.is_segment_free(qnew,j):
                         qnew_neighbors.append(j)
-                        new_cost = costs[j] + qnew.dist(j)
-                        if new_cost < costs[qnew]:
+                        new_cost = costs[j] + qnew.dist(j) # Calculate cost of qnew from the neighbor j
+                        if new_cost < costs[qnew]: # Update cost of qnew if it is less than previous cost
                             qmin = j
                             costs[qnew] = new_cost
                             
                 if qnew not in tree:
-                    tree[qnew] = qmin
+                    tree[qnew] = qmin # update parent of qnew
 
+                # If goal is reached for the first time, return the tree and path to the goal at that iteration
                 if qnew.dist(self.goal)==0 and reached_goal == False:
                     reached_goal = True
-                    tree[self.goal] = qnew
-                    first_tree = copy.deepcopy(tree)
-                    first_path,first_path_cost = self.reconstruct_path(tree,self.goal)
-                    costs[self.goal] = first_path_cost
+                    tree[self.goal] = qnew # add goal to the tree
+                    first_tree = copy.deepcopy(tree) # Save the current tree
+                    first_path,first_path_cost = self.reconstruct_path(tree,self.goal) # Get the first path reached and its cost
+                    costs[self.goal] = first_path_cost 
                     first_iter = i
                     print(f"First path found after {i} iterations")
 
                 # Rewiring
                 for neighbor in qnew_neighbors:
                     if neighbor != qmin:
-                        new_neighbor_cost = costs[qnew] + qnew.dist(neighbor)
-                        if new_neighbor_cost < costs[neighbor]:
-                            tree[neighbor] = qnew
-                            costs[neighbor] = new_neighbor_cost
+                        new_neighbor_cost = costs[qnew] + qnew.dist(neighbor) 
+                        if new_neighbor_cost < costs[neighbor]: # Check if cost of neighbor from qnew is smaller than its previous cost
+                            tree[neighbor] = qnew # Update parent of neighbor to qnew
+                            costs[neighbor] = new_neighbor_cost #Update cost of neighbor
 
-        if self.goal in tree.keys():
-            path,path_cost = self.reconstruct_path(tree,self.goal)
-            # path = []
-            # path_cost = 0
+        if self.goal in tree.keys(): # Check if goal was reached during all iterations
+            path,path_cost = self.reconstruct_path(tree,self.goal) # Get path after all iterations and the cost of the final path
             return first_tree, first_path[:-1],first_path_cost,first_iter,tree,path,path_cost
         
         print("No Path Found")
@@ -303,7 +342,7 @@ class RRTStar:
 
 if __name__ == "__main__":
     if len(sys.argv)!=10:
-        print("Not Enough arguments. Please use the following interface to run the program:\n")
+        print("Incorrect number of arguments. Please use the following interface to run the program:\n")
         print("\tpython3 rrt.py path_to_grid_map_image K Δq p max_search_radius qstart_x qstart_y qgoal_x qgoal_y")
         sys.exit(0)
 

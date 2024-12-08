@@ -390,7 +390,7 @@ class RRT:
 if __name__ == "__main__":
 
     if len(sys.argv) != 9:
-        print("Not Enough arguments. Please use the following interface to run the program:\n")
+        print("Incorrect number of arguments. Please use the following interface to run the program:\n")
         print("\tpython3 rrt.py path_to_grid_map_image K Δq p qstart_x qstart_y qgoal_x qgoal_y")
         sys.exit(0)
     
